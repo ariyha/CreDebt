@@ -2,6 +2,7 @@
 
 package com.example.friendsindeed
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -31,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -46,7 +49,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,6 +81,16 @@ fun HomeScreen(navController: NavController){
     var showBottomSheet by remember {
         mutableStateOf(false)
     }
+
+    val userRepository by lazy { UserRepository( context.applicationContext) }
+    val onAddUser :(user: User)->Unit={user->
+            runBlocking(IO) {
+                userRepository.insert(user = user)
+            }
+    }
+
+    val users = userRepository.getall().observeAsState(emptyList())
+
 
     Scaffold(
         topBar = { MyApp() },
@@ -116,6 +131,7 @@ fun HomeScreen(navController: NavController){
                         OutlinedButton(onClick = {
                             Toast.makeText(context, "Pls welcome $newname", Toast.LENGTH_SHORT)
                                 .show()
+                            onAddUser(User(name = newname, amount = 0))
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
                                 if (!sheetState.isVisible) {
                                     showBottomSheet = false
@@ -133,7 +149,7 @@ fun HomeScreen(navController: NavController){
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 HomeUpperPanel()
-                HomeLowerPanel(navController)
+                HomeLowerPanel(navController,users.value)
 
             }
         }
@@ -188,18 +204,30 @@ fun HomeUpperPanel(){
     }
 }
 
+
+
 @Composable
-fun HomeLowerPanel(navController: NavController){
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)){
-        items(100){ UserCard("Nithish Ariyha",true,100,navController) }
+fun HomeLowerPanel(navController: NavController, users: List<User>){
+    val context = LocalContext.current
+    Row(modifier = Modifier.fillMaxSize()){
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            itemsIndexed(users) {_, element ->
+                UserCard(
+                    name = element.name,
+                    indebt = element.amount < 0,
+                    amount = element.amount,
+                    navController = navController,
+                    context = context,
+                )
+            }
+        }
     }
 }
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController){
-    val context = LocalContext.current
+fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController,context:Context){
     Card (
         modifier = Modifier
             .height(70.dp)
