@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -277,6 +279,37 @@ fun UserLowerPanel(){
 @Composable
 fun TransactCard(){
     val context = LocalContext.current
+    var alertdialogval by remember {
+        mutableStateOf(false)
+    }
+
+    when{
+        alertdialogval->{
+            AlertDialog(
+                onDismissRequest = { alertdialogval = false },
+                icon = { Icon(painter = painterResource(id = R.drawable.menu), contentDescription ="some" ) },
+                confirmButton = {
+                    TextButton(onClick = { alertdialogval = false }) {
+                        Text("Confirm")
+                    }
+                },
+                title = { Text(text = "Edit") },
+                text = {
+                    Text(text = "Do you want to edit or delete? ")
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        Toast.makeText(context, "Using Button", Toast.LENGTH_SHORT).show()
+                        alertdialogval = false
+                    }) {
+                        Text("Dismiss")
+                    }
+                },
+                )
+        }
+    }
+
+
     val pay = SwipeAction(
             onSwipe = {
                 Toast.makeText(context, "Paid", Toast.LENGTH_SHORT).show()
@@ -295,8 +328,7 @@ fun TransactCard(){
                 containerColor = MaterialTheme.colorScheme.background
             ),
             onClick = {
-                Toast.makeText(context, "Hello Motherfuckersssss",
-                    Toast.LENGTH_SHORT).show()
+                alertdialogval=true
             }){
             Row(modifier= Modifier
                 .padding(5.dp)
@@ -339,7 +371,5 @@ fun TransactCard(){
             )
         }
     }
-
-
 }
 
