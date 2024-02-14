@@ -1,7 +1,8 @@
 package com.example.friendsindeed
 
+import android.os.Build
 import android.widget.Toast
-import androidx.compose.foundation.Image
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,8 +16,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -24,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -40,20 +44,57 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.maxkeppeker.sheets.core.models.base.UseCaseState
+import com.maxkeppeler.sheets.calendar.CalendarDialog
+import com.maxkeppeler.sheets.calendar.models.CalendarSelection
+import com.maxkeppeler.sheets.clock.ClockDialog
+import com.maxkeppeler.sheets.clock.models.ClockSelection
 import kotlinx.coroutines.launch
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
+import java.time.LocalDate
+import java.time.LocalTime
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserScreen(username: String?){
     var newname by remember {
         mutableStateOf("")
     }
+    var credit by remember {
+        mutableStateOf(false)
+    }
+
+    var date by remember {
+        mutableStateOf(LocalDate.now())
+    }
+
+    var hour by remember {
+        mutableStateOf(LocalTime.now().hour)
+    }
+
+    var minute by remember {
+        mutableStateOf(LocalTime.now().minute)
+    }
+
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState()
+    val calstate  = UseCaseState()
+    val timesate = UseCaseState()
+    
+    CalendarDialog(state = calstate, selection =CalendarSelection.Date{
+        dates -> date = dates}
+    )
+
+    ClockDialog(state = timesate, selection =ClockSelection.HoursMinutes{
+        hours, minutes ->  hour=hours
+                            minute=minutes
+    } )
+
     val context = LocalContext.current
     var showBottomSheet by remember {
         mutableStateOf(false)
@@ -71,7 +112,7 @@ fun UserScreen(username: String?){
             )
         }
     ) {padding->
-        Surface(modifier =Modifier
+        Surface(modifier = Modifier
             .padding(padding)
             .fillMaxSize(),
             color = MaterialTheme.colorScheme.background
@@ -80,13 +121,45 @@ fun UserScreen(username: String?){
                 ModalBottomSheet(onDismissRequest = { showBottomSheet=false }, sheetState = sheetState) {
                     Column(modifier= Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.3f),
+                        .fillMaxHeight(),
                     ){
-                        Text(
-                            text = "Add Transaction",
-                            fontSize = 30.sp,
-                            modifier = Modifier.padding(20.dp)
-                        )
+                        Row(modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween){
+                            Text(
+                                text = "Add Transaction",
+                                fontSize = 20.sp,
+                                modifier = Modifier.padding(20.dp)
+                            )
+                            Row{
+                                Text(
+                                    text = "Debt",
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                                Switch(checked = credit,
+                                    onCheckedChange = { credit = it},
+                                    thumbContent = {
+                                        if (credit) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.down_arrow_filled),
+                                                contentDescription = " "
+                                            )
+                                        } else {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.up_arrow_filled),
+                                                contentDescription = " "
+                                            )
+                                        }
+                                    }
+                                    )
+                                Text(
+                                    text = "Credit",
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        }                        
                         OutlinedTextField(
                             value = newname,
                             onValueChange = { newname = it },
@@ -97,8 +170,38 @@ fun UserScreen(username: String?){
                                 .fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                         )
+
+                        OutlinedTextField(
+                            value = newname,
+                            onValueChange = { newname = it },
+                            label = { Text("Amount") },
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(horizontal = 20.dp)
+                                .fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+
+
+                        Row(modifier=Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly){
+                            OutlinedButton(
+                                onClick = { calstate.show() },
+                                modifier = Modifier.padding(20.dp)
+                            ) {
+                                Text(text = "$date")
+                            }
+
+                            OutlinedButton(
+                                onClick = { timesate.show() },
+                                modifier = Modifier.padding(20.dp)
+                            ) {
+                                Text(text = "$hour/$minute")
+                            }
+                        }
+
                         OutlinedButton(onClick = {
-                            Toast.makeText(context, "Pls welcome $newname", Toast.LENGTH_SHORT)
+                            Toast.makeText(context, "Pls welcome $date $hour.$minute", Toast.LENGTH_SHORT)
                                 .show()
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
                                 if (!sheetState.isVisible) {
@@ -107,7 +210,7 @@ fun UserScreen(username: String?){
                             }
                         },
                             modifier = Modifier.padding(20.dp)) {
-                            Text(text = "Add User")
+                            Text(text = "Add")
                         }
                     }
                 }
@@ -162,7 +265,7 @@ fun UserUpperPanel(username:String?){
 
 @Composable
 fun UserLowerPanel(){
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)){
+    LazyColumn{
         items(100){
             TransactCard()
         }
@@ -170,7 +273,7 @@ fun UserLowerPanel(){
 
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Preview
 @Composable
 fun TransactCard(){
     val context = LocalContext.current
@@ -178,29 +281,33 @@ fun TransactCard(){
             onSwipe = {
                 Toast.makeText(context, "Paid", Toast.LENGTH_SHORT).show()
             },
-            icon = { Icon(painter = painterResource(id = R.drawable.plus_new), contentDescription ="Savinggg" )},
-            background = Color.Green
+            icon = { Icon(painter = painterResource(id = R.drawable.pay), contentDescription ="Savinggg",
+                modifier = Modifier.padding(10.dp))},
+            background = MaterialTheme.colorScheme.secondaryContainer
         )
 
     SwipeableActionsBox(startActions = listOf(pay)) {
         Card(modifier = Modifier
             .height(70.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(0.dp))
+            , colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.background
+            ),
             onClick = {
                 Toast.makeText(context, "Hello Motherfuckersssss",
                     Toast.LENGTH_SHORT).show()
             }){
             Row(modifier= Modifier
                 .padding(5.dp)
-                .fillMaxHeight()
+                .fillMaxHeight(0.95f)
                 .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically) {
-                Image(
+                Icon(
                     painter = painterResource(id = R.drawable.up_arrow_outline),
                     contentDescription = "Account User",
                     modifier = Modifier
-                        .size(50.dp) // Aligning the Image to the center
+                        .size(40.dp)
                 )
                 Column(modifier= Modifier
                     .padding(start = 10.dp)
@@ -208,12 +315,12 @@ fun TransactCard(){
                     Text(text = "Breakfast",
                         fontSize = 20.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         modifier= Modifier.padding(top = 5.dp))
                     Text(text = "Hello",
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         modifier= Modifier.padding(5.dp))
                 }
                 Column(verticalArrangement = Arrangement.Center,
@@ -222,10 +329,14 @@ fun TransactCard(){
                     Text(text = "₹${100}",
                         fontSize = 20.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = Color.White )
+                        color = MaterialTheme.colorScheme.onBackground )
                 }
 
             }
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.onBackground,
+                thickness = 2.dp
+            )
         }
     }
 

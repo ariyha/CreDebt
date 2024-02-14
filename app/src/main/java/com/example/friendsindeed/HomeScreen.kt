@@ -52,15 +52,16 @@ import kotlinx.coroutines.launch
 @Composable
 fun MyApp() {
         CenterAlignedTopAppBar(
-            navigationIcon = { IconButton(onClick = { /*TODO*/ }) {
-                Icon(painter = painterResource(id = R.drawable.menu),
-                    contentDescription = "Menu Button" )
-            }},
-                title = { Text(text = "My App",
+            title = { Text(text = "My App",
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 30.sp
                 )},
+            actions = {
+                IconButton(onClick = { /*TODO*/ }) {
+                    Icon(painter = painterResource(id = R.drawable.search), contentDescription = "")
+                }
+            }
             )
 }
 
