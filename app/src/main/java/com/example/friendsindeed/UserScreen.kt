@@ -1,5 +1,6 @@
 package com.example.friendsindeed
 
+import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -34,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -46,7 +49,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maxkeppeker.sheets.core.models.base.UseCaseState
@@ -54,7 +56,9 @@ import com.maxkeppeler.sheets.calendar.CalendarDialog
 import com.maxkeppeler.sheets.calendar.models.CalendarSelection
 import com.maxkeppeler.sheets.clock.ClockDialog
 import com.maxkeppeler.sheets.clock.models.ClockSelection
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
 import java.time.LocalDate
@@ -63,8 +67,32 @@ import java.time.LocalTime
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserScreen(username: String?){
-    var newname by remember {
+fun UserScreen(uid: String?){
+    val context = LocalContext.current
+    val userRepository by lazy { UserRepository( context.applicationContext) }
+
+
+    var accamount:Int by remember {
+        mutableStateOf(0)
+    }
+
+    val getAmount :(uid:String)->Int={uid->
+        runBlocking(Dispatchers.IO) {
+            userRepository.getamount(uid)
+        }
+    }
+
+    accamount =  getAmount(uid.toString())
+
+
+    var pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+
+
+    var description by remember {
+        mutableStateOf("")
+    }
+
+    var amount by remember {
         mutableStateOf("")
     }
     var credit by remember {
@@ -72,7 +100,7 @@ fun UserScreen(username: String?){
     }
 
     var date by remember {
-        mutableStateOf(LocalDate.now())
+        mutableStateOf(LocalDate.now().toString())
     }
 
     var hour by remember {
@@ -87,9 +115,26 @@ fun UserScreen(username: String?){
     val sheetState = rememberModalBottomSheetState()
     val calstate  = UseCaseState()
     val timesate = UseCaseState()
-    
+
+
+    val oninserttransact :(transaction: Transaction)->Unit={transaction->
+        runBlocking(Dispatchers.IO) {
+            userRepository.inserttransact(transaction)
+        }
+    }
+
+    val updateamount:(uid:String, amount:Int) -> Unit = { uid,amount->
+        runBlocking(Dispatchers.IO) {
+            userRepository.updateamount(uid,amount)
+        }
+    }
+
+
+    val transacts = uid?.let { userRepository.gettransact(it).observeAsState(emptyList()) }
+
+
     CalendarDialog(state = calstate, selection =CalendarSelection.Date{
-        dates -> date = dates}
+        dates -> date = dates.toString()}
     )
 
     ClockDialog(state = timesate, selection =ClockSelection.HoursMinutes{
@@ -97,7 +142,6 @@ fun UserScreen(username: String?){
                             minute=minutes
     } )
 
-    val context = LocalContext.current
     var showBottomSheet by remember {
         mutableStateOf(false)
     }
@@ -163,19 +207,18 @@ fun UserScreen(username: String?){
                             }
                         }                        
                         OutlinedTextField(
-                            value = newname,
-                            onValueChange = { newname = it },
-                            label = { Text("Amount") },
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Description") },
                             maxLines = 1,
                             modifier = Modifier
                                 .padding(horizontal = 20.dp)
                                 .fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                         )
 
                         OutlinedTextField(
-                            value = newname,
-                            onValueChange = { newname = it },
+                            value = amount,
+                            onValueChange = { amount = it },
                             label = { Text("Amount") },
                             maxLines = 1,
                             modifier = Modifier
@@ -191,7 +234,7 @@ fun UserScreen(username: String?){
                                 onClick = { calstate.show() },
                                 modifier = Modifier.padding(20.dp)
                             ) {
-                                Text(text = "$date")
+                                Text(text = date.toString())
                             }
 
                             OutlinedButton(
@@ -203,6 +246,29 @@ fun UserScreen(username: String?){
                         }
 
                         OutlinedButton(onClick = {
+                            val tid = pref.getInt("tid", 2)
+                            pref.edit().putInt("tid", tid+1).apply()
+                            oninserttransact(Transaction(
+                                tid = tid.toString(),
+                                uid = uid!!,
+                                description = description,
+                                debt = if (credit) "F" else "T",
+                                paid = "F",
+                                date = date,
+                                time = "$hour:$minute",
+                                amount = amount.toInt()
+                            ))
+                            if(credit){
+                                accamount+=amount.toInt()
+                            }
+                            else{
+                                accamount-=amount.toInt()
+                            }
+
+                            updateamount(uid,accamount)
+
+                            description=""
+                            amount=""
                             Toast.makeText(context, "Pls welcome $date $hour.$minute", Toast.LENGTH_SHORT)
                                 .show()
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -223,8 +289,10 @@ fun UserScreen(username: String?){
                 Modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
                 ,){
-                UserUpperPanel(username)
-                UserLowerPanel()
+                UserUpperPanel(uid)
+                if (transacts != null) {
+                    UserLowerPanel(transacts.value)
+                }
             }
         }
 
@@ -232,7 +300,33 @@ fun UserScreen(username: String?){
 }
 
 @Composable
-fun UserUpperPanel(username:String?){
+fun UserUpperPanel(uid:String?){
+    val context = LocalContext.current
+    val userRepository by lazy { UserRepository( context.applicationContext) }
+    val getAmount :(uid:String)->Int={uid->
+        runBlocking(Dispatchers.IO) {
+            userRepository.getamount(uid)
+        }
+    }
+
+    var name=""
+    val users = userRepository.getall().observeAsState(emptyList()).value
+    for(element in users){
+        if (element.uid.equals(uid)){
+            name=element.name
+            break
+        }
+    }
+
+    var amount:Int by remember {
+        mutableStateOf(0)
+    }
+    amount=getAmount(uid.toString())
+
+
+
+
+
     Card(modifier = Modifier
         .clip(RoundedCornerShape(30.dp))
         .padding(10.dp)
@@ -244,41 +338,64 @@ fun UserUpperPanel(username:String?){
         Column(horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxSize()){
-            Text(
-                text = "$username",
-                fontSize = 30.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White,
-                modifier = Modifier.padding(10.dp)
-            )
-
-            Text(
-                text = "Owes You",
-                fontSize = 15.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White
-            )
-            Text(text = "$ 1.00",
-                fontSize = 20.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White)
-        }    }
+                Text(
+                    text = name,
+                    fontSize = 30.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color.White,
+                    modifier = Modifier.padding(10.dp)
+                )
+                Text(
+                    text = "Owes You",
+                    fontSize = 15.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color.White
+                )
+                Text(text = "$ ${amount}",
+                    fontSize = 20.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color.White)
+        }
+    }
 }
 
 @Composable
-fun UserLowerPanel(){
+fun UserLowerPanel(transactlist:List<Transaction>){
     LazyColumn{
-        items(100){
-            TransactCard()
+        itemsIndexed(transactlist){_,element->
+            TransactCard(element)
         }
     }
 
 }
 
-@Preview
 @Composable
-fun TransactCard(){
+fun TransactCard(element: Transaction) {
     val context = LocalContext.current
+    val userRepository by lazy { UserRepository( context.applicationContext) }
+
+    val getAmount :(uid:String)->Int={uid->
+        runBlocking(Dispatchers.IO) {
+            userRepository.getamount(uid)
+        }
+    }
+
+    var amount by remember { mutableStateOf(0) }
+
+    amount = getAmount(element.uid)
+
+    val onupdate: (uid: String,valu:String) -> Unit = { uid,valu ->
+        runBlocking(Dispatchers.IO) {
+            userRepository.updatepaid(uid,valu)
+        }
+    }
+
+    val updateamount:(uid:String, amount:Int) -> Unit = { uid,amount->
+        runBlocking(Dispatchers.IO) {
+            userRepository.updateamount(uid,amount)
+        }
+    }
+
     var alertdialogval by remember {
         mutableStateOf(false)
     }
@@ -309,10 +426,30 @@ fun TransactCard(){
         }
     }
 
+    var paid by remember {
+        mutableStateOf("")
+    }
+    paid = element.paid
 
     val pay = SwipeAction(
             onSwipe = {
                 Toast.makeText(context, "Paid", Toast.LENGTH_SHORT).show()
+
+                if(element.paid.equals("T")){
+                    amount+=element.amount
+                    onupdate(element.tid,"F")
+                }
+                else{
+                    amount-=element.amount
+                    onupdate(element.tid,"T")
+                }
+                if (paid.equals("T")){
+                    paid="F"
+                }
+                else{
+                    paid="T"
+                }
+                updateamount(element.uid,amount)
             },
             icon = { Icon(painter = painterResource(id = R.drawable.pay), contentDescription ="Savinggg",
                 modifier = Modifier.padding(10.dp))},
@@ -320,56 +457,79 @@ fun TransactCard(){
         )
 
     SwipeableActionsBox(startActions = listOf(pay)) {
-        Card(modifier = Modifier
-            .height(70.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(0.dp))
-            , colors = CardDefaults.cardColors(
+            Card(modifier = Modifier.run {
+                height(70.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(0.dp))
+            }, colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.background
             ),
-            onClick = {
-                alertdialogval=true
-            }){
-            Row(modifier= Modifier
-                .padding(5.dp)
-                .fillMaxHeight(0.95f)
-                .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.up_arrow_outline),
-                    contentDescription = "Account User",
+                onClick = {
+                    alertdialogval = true
+                }) {
+                Row(
                     modifier = Modifier
-                        .size(40.dp)
-                )
-                Column(modifier= Modifier
-                    .padding(start = 10.dp)
-                    .fillMaxWidth(0.65f)) {
-                    Text(text = "Breakfast",
-                        fontSize = 20.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier= Modifier.padding(top = 5.dp))
-                    Text(text = "Hello",
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier= Modifier.padding(5.dp))
-                }
-                Column(verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally){
-                    Text(text = "₹${100}",
-                        fontSize = 20.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onBackground )
-                }
+                        .padding(5.dp)
+                        .fillMaxHeight(0.95f)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    getLogo(element = element, paid)
+                    Column(
+                        modifier = Modifier
+                            .padding(start = 10.dp)
+                            .fillMaxWidth(0.65f)
+                    ) {
+                        Text(
+                            text = element.description,
+                            fontSize = 20.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(top = 5.dp)
+                        )
+                        Text(
+                            text = "${element.date} ${element.time}",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(5.dp)
+                        )
+                    }
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "₹${element.amount}",
+                            fontSize = 20.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
 
+                }
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onBackground,
+                    thickness = 2.dp
+                )
             }
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.onBackground,
-                thickness = 2.dp
-            )
         }
-    }
+
 }
 
+@Composable
+fun getLogo(element: Transaction,paid:String) {
+    val iconResourceId = when {
+        element.debt == "T" && paid == "T" -> R.drawable.up_arrow_filled
+        element.debt == "T" && paid == "F" -> R.drawable.up_arrow_outline
+        element.debt == "F" && paid == "T" -> R.drawable.down_arrow_filled
+        else -> R.drawable.down_arrow_outline
+    }
+
+    Icon(
+        painter = painterResource(id = iconResourceId),
+        contentDescription = "Account User",
+        modifier = Modifier.size(40.dp)
+    )
+}

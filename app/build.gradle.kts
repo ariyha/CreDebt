@@ -74,10 +74,9 @@ dependencies {
     implementation("com.maxkeppeler.sheets-compose-dialogs:calendar:1.3.0")
     implementation("com.maxkeppeler.sheets-compose-dialogs:clock:1.3.0")
     implementation("androidx.room:room-runtime:2.6.1")
-    annotationProcessor("androidx.room:room-compiler:$2.6.1")
-    // optional - Kotlin Extensions and Coroutines support for Room
+    kapt("androidx.room:room-compiler:2.6.1")
+    kapt("android.arch.persistence.room:compiler:1.1.1")
     implementation("androidx.room:room-ktx:$2.6.1")
-    // To support LiveData in Compose
     implementation("androidx.compose.runtime:runtime-livedata:1.6.1")
 
 

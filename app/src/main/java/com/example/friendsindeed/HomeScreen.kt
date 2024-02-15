@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
 
 package com.example.friendsindeed
 
@@ -72,6 +72,7 @@ fun MyApp() {
 
 @Composable
 fun HomeScreen(navController: NavController){
+
     var newname by remember {
         mutableStateOf("")
     }
@@ -82,14 +83,18 @@ fun HomeScreen(navController: NavController){
         mutableStateOf(false)
     }
 
+    val pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+
+
     val userRepository by lazy { UserRepository( context.applicationContext) }
     val onAddUser :(user: User)->Unit={user->
             runBlocking(IO) {
-                userRepository.insert(user = user)
+                    userRepository.insert(user = user)
             }
     }
 
     val users = userRepository.getall().observeAsState(emptyList())
+    print("Database starting with no issues")
 
 
     Scaffold(
@@ -129,9 +134,12 @@ fun HomeScreen(navController: NavController){
                                 .fillMaxWidth()
                         )
                         OutlinedButton(onClick = {
-                            Toast.makeText(context, "Pls welcome $newname", Toast.LENGTH_SHORT)
+                            val userid = pref.getInt("userid", 2)
+                            pref.edit().putInt("userid", userid + 1).apply()
+                            Toast.makeText(context, "Pls welcome $userid", Toast.LENGTH_SHORT)
                                 .show()
-                            onAddUser(User(name = newname, amount = 0))
+                            onAddUser(User(uid = userid.toString(), name = newname, amount = 0))
+                            newname = ""
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
                                 if (!sheetState.isVisible) {
                                     showBottomSheet = false
@@ -149,7 +157,7 @@ fun HomeScreen(navController: NavController){
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 HomeUpperPanel()
-                HomeLowerPanel(navController,users.value)
+                HomeLowerPanel(navController,users .value)
 
             }
         }
@@ -217,7 +225,6 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
                     indebt = element.amount < 0,
                     amount = element.amount,
                     navController = navController,
-                    context = context,
                 )
             }
         }
@@ -225,18 +232,15 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
 }
 
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController,context:Context){
+fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController){
     Card (
         modifier = Modifier
             .height(70.dp)
             .clip(RoundedCornerShape(10.dp))
             .fillMaxWidth(),
         onClick = {
-            Toast.makeText(context, "Hello Motherfuckersssss",
-                Toast.LENGTH_SHORT).show()
-            navController.navigate(UserScreen.route+"/Nithish Ariyha")
+            navController.navigate(UserScreen.route+"/$name")
 
         },
 
@@ -267,7 +271,7 @@ fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavControlle
                 Text(text = "₹${amount}",
                 fontSize = 20.sp,
                 fontFamily = FontFamily.Monospace,
-                    color = if(indebt) Color.Green else Color.Red )
+                    color = if(indebt) Color.Red else Color.Green )
             }
 
         }
