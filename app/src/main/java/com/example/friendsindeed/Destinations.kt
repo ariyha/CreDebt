@@ -10,5 +10,5 @@ object HomeScreen:Destinations{
 
 object UserScreen:Destinations{
     override val route: String="UserScreen"
-    const val username = "username"
+    const val uid = "uid"
 }
