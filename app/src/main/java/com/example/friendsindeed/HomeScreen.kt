@@ -4,7 +4,6 @@ package com.example.friendsindeed
 
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -70,6 +70,7 @@ fun MyApp() {
             )
 }
 
+@ExperimentalMaterial3Api
 @Composable
 fun HomeScreen(navController: NavController){
 
@@ -156,16 +157,25 @@ fun HomeScreen(navController: NavController){
                 Modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                HomeUpperPanel()
+                var credit = 0
+                var debt = 0
+                for(user in users.value){
+                    if (user.amount<0){
+                        debt+=user.amount
+                        }
+                    else{
+                        credit+=user.amount
+                        }
+                }
+                HomeUpperPanel(credit,debt)
                 HomeLowerPanel(navController,users .value)
-
             }
         }
     }
 }
 
 @Composable
-fun HomeUpperPanel(){
+fun HomeUpperPanel(credit:Int,debt:Int){
     val context = LocalContext.current
     Row {
         Card(modifier = Modifier
@@ -181,11 +191,12 @@ fun HomeUpperPanel(){
                 modifier = Modifier.fillMaxSize()){
                 Text(text = "You Owe",
                     fontSize = 20.sp,
-                    fontFamily = FontFamily.Monospace)
-                Text(text = "₹1000",
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(text = "₹${debt}",
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White)
+                    color = Color.Red)
             }
         }
         Card(modifier = Modifier
@@ -201,11 +212,12 @@ fun HomeUpperPanel(){
                 modifier = Modifier.fillMaxSize()){
                 Text(text = "Owed to you",
                     fontSize = 20.sp,
-                    fontFamily = FontFamily.Monospace)
-                Text(text = "₹1000",
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(text = "₹${credit}",
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White)
+                    color = Color.Green)
             }
         }
 
@@ -216,7 +228,6 @@ fun HomeUpperPanel(){
 
 @Composable
 fun HomeLowerPanel(navController: NavController, users: List<User>){
-    val context = LocalContext.current
     Row(modifier = Modifier.fillMaxSize()){
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             itemsIndexed(users) {_, element ->
@@ -225,6 +236,7 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
                     indebt = element.amount < 0,
                     amount = element.amount,
                     navController = navController,
+                    uid = element.uid
                 )
             }
         }
@@ -233,14 +245,15 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
 
 
 @Composable
-fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController){
+fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController,uid:String){
     Card (
         modifier = Modifier
             .height(70.dp)
             .clip(RoundedCornerShape(10.dp))
             .fillMaxWidth(),
         onClick = {
-            navController.navigate(UserScreen.route+"/$name")
+            val json = Gson().toJson(User(uid = uid, name = name, amount = amount))
+            navController.navigate(UserScreen.route+"/$json")
 
         },
 
@@ -250,11 +263,11 @@ fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavControlle
             .fillMaxHeight()
             .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically) {
-            Image(
+            Icon(
                 painter = painterResource(id = R.drawable.profile_user),
                 contentDescription = "Account User",
                 modifier = Modifier
-                    .size(50.dp) // Aligning the Image to the center
+                    .size(40.dp).padding(horizontal = 5.dp) // Aligning the Image to the center
             )
             Text(
                 text = name,

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.friendsindeed
 
 import android.content.Context
@@ -8,6 +10,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.LiveData
@@ -24,6 +27,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Update
 import com.example.friendsindeed.ui.theme.FriendsInDeedTheme
 
 class MainActivity : ComponentActivity() {
@@ -48,6 +52,7 @@ class MainActivity : ComponentActivity() {
 }
 
 
+@ExperimentalMaterial3Api
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MyNavigation(){
@@ -79,6 +84,7 @@ data class Transaction (
     @PrimaryKey
     var tid: String,
     var uid:String,
+    var name:String,
     var description:String,
     var debt:String,
     var paid:String,
@@ -89,6 +95,7 @@ data class Transaction (
 
 @Dao
 interface UserDao{
+
     @Insert
     fun insert(user: User)
 
@@ -107,11 +114,11 @@ interface UserDao{
     @Query("SELECT * FROM user_table WHERE uid=:uid")
     fun getuser(uid:String): LiveData<List<User>>
 
-    @Query("UPDATE transaction_table SET paid=:valu WHERE tid=:tid")
-    fun updatepaid(tid:String,valu:String)
+    @Update
+    fun updatetransact(transaction: Transaction)
 
-    @Query("UPDATE user_table SET amount=:amount WHERE uid=:uid")
-    fun updateamount(uid:String,amount:Int)
+    @Update
+    fun updateamount(user: User)
 
 }
 
@@ -131,8 +138,7 @@ class UserRepository(context: Context){
 
     fun inserttransact(transaction: Transaction) = database.userDao().inserttransact(transaction)
 
+    fun updatetransact(transaction: Transaction) = database.userDao().updatetransact(transaction )
 
-    fun updatepaid(tid: String,valu: String) = database.userDao().updatepaid(tid,valu)
-
-    fun updateamount(uid: String, amount: Int) = database.userDao().updateamount(uid,amount)
+    fun updateamount(user: User) = database.userDao().updateamount(user)
 }

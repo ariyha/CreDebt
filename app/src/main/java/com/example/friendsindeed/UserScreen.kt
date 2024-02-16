@@ -1,3 +1,5 @@
+@file:Suppress("NAME_SHADOWING")
+
 package com.example.friendsindeed
 
 import android.content.Context
@@ -35,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +54,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.gson.Gson
 import com.maxkeppeker.sheets.core.models.base.UseCaseState
 import com.maxkeppeler.sheets.calendar.CalendarDialog
 import com.maxkeppeler.sheets.calendar.models.CalendarSelection
@@ -63,29 +67,26 @@ import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlin.math.abs
+
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserScreen(uid: String?){
+fun UserScreen(user: String?){
+    val user = Gson().fromJson(user, User::class.java)
+
     val context = LocalContext.current
     val userRepository by lazy { UserRepository( context.applicationContext) }
 
 
-    var accamount:Int by remember {
+    val accamount:MutableState<Int> = remember {
         mutableStateOf(0)
     }
-
-    val getAmount :(uid:String)->Int={uid->
-        runBlocking(Dispatchers.IO) {
-            userRepository.getamount(uid)
-        }
-    }
-
-    accamount =  getAmount(uid.toString())
+    accamount.value =  user.amount
 
 
-    var pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+    val pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
 
 
     var description by remember {
@@ -123,14 +124,14 @@ fun UserScreen(uid: String?){
         }
     }
 
-    val updateamount:(uid:String, amount:Int) -> Unit = { uid,amount->
+    val updateamount:(user:User) -> Unit = { user->
         runBlocking(Dispatchers.IO) {
-            userRepository.updateamount(uid,amount)
+            userRepository.updateamount(user)
         }
     }
 
 
-    val transacts = uid?.let { userRepository.gettransact(it).observeAsState(emptyList()) }
+    val transacts = user.uid.let { userRepository.gettransact(it).observeAsState(emptyList()) }
 
 
     CalendarDialog(state = calstate, selection =CalendarSelection.Date{
@@ -234,7 +235,7 @@ fun UserScreen(uid: String?){
                                 onClick = { calstate.show() },
                                 modifier = Modifier.padding(20.dp)
                             ) {
-                                Text(text = date.toString())
+                                Text(text = date)
                             }
 
                             OutlinedButton(
@@ -250,22 +251,27 @@ fun UserScreen(uid: String?){
                             pref.edit().putInt("tid", tid+1).apply()
                             oninserttransact(Transaction(
                                 tid = tid.toString(),
-                                uid = uid!!,
+                                uid = user.uid,
                                 description = description,
                                 debt = if (credit) "F" else "T",
                                 paid = "F",
                                 date = date,
                                 time = "$hour:$minute",
-                                amount = amount.toInt()
+                                amount = amount.toInt(),
+                                name = user.name
                             ))
                             if(credit){
-                                accamount+=amount.toInt()
+                                accamount.value+=amount.toInt()
                             }
                             else{
-                                accamount-=amount.toInt()
+                                accamount.value-=amount.toInt()
                             }
 
-                            updateamount(uid,accamount)
+                            updateamount(User(
+                                uid = user.uid,
+                                name = user.name,
+                                amount = accamount.value
+                            ))
 
                             description=""
                             amount=""
@@ -289,10 +295,9 @@ fun UserScreen(uid: String?){
                 Modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
                 ,){
-                UserUpperPanel(uid)
-                if (transacts != null) {
-                    UserLowerPanel(transacts.value)
-                }
+                UserUpperPanel(user,accamount)
+                UserLowerPanel(transacts.value,accamount)
+
             }
         }
 
@@ -300,29 +305,14 @@ fun UserScreen(uid: String?){
 }
 
 @Composable
-fun UserUpperPanel(uid:String?){
-    val context = LocalContext.current
-    val userRepository by lazy { UserRepository( context.applicationContext) }
-    val getAmount :(uid:String)->Int={uid->
-        runBlocking(Dispatchers.IO) {
-            userRepository.getamount(uid)
-        }
-    }
+fun UserUpperPanel(user: User,accamount: MutableState<Int>){
 
-    var name=""
-    val users = userRepository.getall().observeAsState(emptyList()).value
-    for(element in users){
-        if (element.uid.equals(uid)){
-            name=element.name
-            break
-        }
-    }
+    val name=user.name
 
     var amount:Int by remember {
         mutableStateOf(0)
     }
-    amount=getAmount(uid.toString())
-
+    amount=user.amount
 
 
 
@@ -331,8 +321,7 @@ fun UserUpperPanel(uid:String?){
         .clip(RoundedCornerShape(30.dp))
         .padding(10.dp)
         .fillMaxWidth()
-        .fillMaxHeight(0.2f),
-
+        .fillMaxHeight(0.2f)
     )
     {
         Column(horizontalAlignment = Alignment.CenterHorizontally,
@@ -342,16 +331,16 @@ fun UserUpperPanel(uid:String?){
                     text = name,
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.padding(10.dp)
                 )
                 Text(
-                    text = "Owes You",
+                    text = if(accamount.value>0) "You are owed" else "You owe",
                     fontSize = 15.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Text(text = "$ ${amount}",
+                Text(text = "$ ${abs(accamount.value)}",
                     fontSize = 20.sp,
                     fontFamily = FontFamily.Monospace,
                     color = Color.White)
@@ -360,39 +349,31 @@ fun UserUpperPanel(uid:String?){
 }
 
 @Composable
-fun UserLowerPanel(transactlist:List<Transaction>){
+fun UserLowerPanel(transactlist:List<Transaction>,accamount:MutableState<Int>){
     LazyColumn{
         itemsIndexed(transactlist){_,element->
-            TransactCard(element)
+            TransactCard(element,accamount)
         }
     }
 
 }
 
 @Composable
-fun TransactCard(element: Transaction) {
+fun TransactCard(element: Transaction,accamount:MutableState<Int>) {
     val context = LocalContext.current
     val userRepository by lazy { UserRepository( context.applicationContext) }
 
-    val getAmount :(uid:String)->Int={uid->
+    val pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+
+    val onupdate: (transaction:Transaction) -> Unit = { transaction->
         runBlocking(Dispatchers.IO) {
-            userRepository.getamount(uid)
+            userRepository.updatetransact(transaction)
         }
     }
 
-    var amount by remember { mutableStateOf(0) }
-
-    amount = getAmount(element.uid)
-
-    val onupdate: (uid: String,valu:String) -> Unit = { uid,valu ->
+    val updateamount:(user:User) -> Unit = { user->
         runBlocking(Dispatchers.IO) {
-            userRepository.updatepaid(uid,valu)
-        }
-    }
-
-    val updateamount:(uid:String, amount:Int) -> Unit = { uid,amount->
-        runBlocking(Dispatchers.IO) {
-            userRepository.updateamount(uid,amount)
+            userRepository.updateamount(user)
         }
     }
 
@@ -433,23 +414,85 @@ fun TransactCard(element: Transaction) {
 
     val pay = SwipeAction(
             onSwipe = {
-                Toast.makeText(context, "Paid", Toast.LENGTH_SHORT).show()
+                if(element.debt=="T") {
+                    if (paid=="T") {
+                        accamount.value -= element.amount
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = element.description,
+                                debt = element.debt,
+                                paid = "F",
+                                date = element.date,
+                                time = element.time,
+                                amount = element.amount,
+                                name = element.name
+                            )
+                        )
+                    } else {
+                        accamount.value += element.amount
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = element.description,
+                                debt = element.debt,
+                                paid = "T",
+                                date = element.date,
+                                time = element.time,
+                                amount = element.amount,
+                                name = element.name
+                            )
+                        )
+                    }
+                }
+                else{
+                    if (paid == "T") {
+                        accamount.value += element.amount
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = element.description,
+                                debt = element.debt,
+                                paid = "F",
+                                date = element.date,
+                                time = element.time,
+                                amount = element.amount,
+                                name = element.name
+                            )
+                        )
+                    } else {
+                        accamount.value -= element.amount
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = element.description,
+                                debt = element.debt,
+                                paid = "T",
+                                date = element.date,
+                                time = element.time,
+                                amount = element.amount,
+                                name = element.name
+                            )
+                        )
+                    }
 
-                if(element.paid.equals("T")){
-                    amount+=element.amount
-                    onupdate(element.tid,"F")
                 }
-                else{
-                    amount-=element.amount
-                    onupdate(element.tid,"T")
+                paid = if (paid == "T"){
+                    "F"
+                } else{
+                    "T"
                 }
-                if (paid.equals("T")){
-                    paid="F"
-                }
-                else{
-                    paid="T"
-                }
-                updateamount(element.uid,amount)
+                Toast.makeText(context, "Paid", Toast.LENGTH_SHORT).show()
+                updateamount(User(
+                    uid = element.uid,
+                    name = element.name,
+                    amount = accamount.value
+                ) )
+
             },
             icon = { Icon(painter = painterResource(id = R.drawable.pay), contentDescription ="Savinggg",
                 modifier = Modifier.padding(10.dp))},
@@ -474,7 +517,7 @@ fun TransactCard(element: Transaction) {
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    getLogo(element = element, paid)
+                    GetLogo(element = element, paid)
                     Column(
                         modifier = Modifier
                             .padding(start = 10.dp)
@@ -519,7 +562,7 @@ fun TransactCard(element: Transaction) {
 }
 
 @Composable
-fun getLogo(element: Transaction,paid:String) {
+fun GetLogo(element: Transaction,paid:String) {
     val iconResourceId = when {
         element.debt == "T" && paid == "T" -> R.drawable.up_arrow_filled
         element.debt == "T" && paid == "F" -> R.drawable.up_arrow_outline
