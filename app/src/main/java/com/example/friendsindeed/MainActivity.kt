@@ -21,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Delete
 import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.PrimaryKey
@@ -33,6 +34,8 @@ import com.example.friendsindeed.ui.theme.FriendsInDeedTheme
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
+
+
 
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(
@@ -66,9 +69,10 @@ fun MyNavigation(){
             arguments = listOf(
                 navArgument(UserScreen.uid){
                     type= NavType.StringType})){
-                    UserScreen(it.arguments?.getString(UserScreen.uid))
+                    UserScreen(it.arguments?.getString(UserScreen.uid),navcontroller)
             }
         }
+
 }
 
 @Entity(tableName = "user_table")
@@ -120,6 +124,15 @@ interface UserDao{
     @Update
     fun updateamount(user: User)
 
+    @Delete
+    fun deleteuser(user: User)
+
+    @Delete
+    fun deletetransact(transaction: Transaction)
+
+    @Query("DELETE FROM transaction_table WHERE uid=:uid")
+    fun deletedata(uid: String)
+
 }
 
 @Database(entities = [User::class,Transaction::class], version = 1)
@@ -141,4 +154,10 @@ class UserRepository(context: Context){
     fun updatetransact(transaction: Transaction) = database.userDao().updatetransact(transaction )
 
     fun updateamount(user: User) = database.userDao().updateamount(user)
+
+    fun deleteuser(user: User) = database.userDao().deleteuser(user)
+
+    fun deletetransact(transaction: Transaction) = database.userDao().deletetransact(transaction)
+
+    fun deletedata(uid:String) = database.userDao().deletedata(uid)
 }
