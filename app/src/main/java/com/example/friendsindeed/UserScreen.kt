@@ -1,9 +1,14 @@
+@file:Suppress("NAME_SHADOWING")
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
+
 package com.example.friendsindeed
 
 import android.content.Context
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,11 +40,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +58,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.navigation.NavHostController
+import com.google.gson.Gson
 import com.maxkeppeker.sheets.core.models.base.UseCaseState
 import com.maxkeppeler.sheets.calendar.CalendarDialog
 import com.maxkeppeler.sheets.calendar.models.CalendarSelection
@@ -63,29 +74,26 @@ import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlin.math.abs
+
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserScreen(uid: String?){
+fun UserScreen(user: String?, navcontroller: NavHostController){
+    val user = Gson().fromJson(user, User::class.java)
+
     val context = LocalContext.current
     val userRepository by lazy { UserRepository( context.applicationContext) }
 
 
-    var accamount:Int by remember {
+    val accamount:MutableState<Int> = remember {
         mutableStateOf(0)
     }
-
-    val getAmount :(uid:String)->Int={uid->
-        runBlocking(Dispatchers.IO) {
-            userRepository.getamount(uid)
-        }
-    }
-
-    accamount =  getAmount(uid.toString())
+    accamount.value =  user.amount
 
 
-    var pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+    val pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
 
 
     var description by remember {
@@ -123,24 +131,36 @@ fun UserScreen(uid: String?){
         }
     }
 
-    val updateamount:(uid:String, amount:Int) -> Unit = { uid,amount->
+    val updateamount:(user:User) -> Unit = { user->
         runBlocking(Dispatchers.IO) {
-            userRepository.updateamount(uid,amount)
+            userRepository.updateamount(user)
         }
     }
 
 
-    val transacts = uid?.let { userRepository.gettransact(it).observeAsState(emptyList()) }
+    val transacts = user.uid.let { userRepository.gettransact(it).observeAsState(mutableListOf()) }
 
 
-    CalendarDialog(state = calstate, selection =CalendarSelection.Date{
-        dates -> date = dates.toString()}
+    CalendarDialog(state = calstate, selection =CalendarSelection.Date(onNegativeClick = {calstate.hide()}){
+
+        dates -> date = dates.toString()
+        calstate.hide()},
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
     )
 
-    ClockDialog(state = timesate, selection =ClockSelection.HoursMinutes{
+    ClockDialog(state = timesate, selection =ClockSelection.HoursMinutes(onNegativeClick = {timesate.hide()}){
         hours, minutes ->  hour=hours
                             minute=minutes
-    } )
+        timesate.hide()
+    } ,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        ))
+
 
     var showBottomSheet by remember {
         mutableStateOf(false)
@@ -149,7 +169,7 @@ fun UserScreen(uid: String?){
         topBar = { MyApp()  },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { Toast.makeText(context,"Hell bitchesss",Toast.LENGTH_SHORT).show()
+                onClick = {
                           showBottomSheet=true},
                 icon = { Icon(painter = painterResource(id = R.drawable.plus_new), "Extended floating action button.",
                     modifier = Modifier.size(20.dp)) },
@@ -169,10 +189,7 @@ fun UserScreen(uid: String?){
                         .fillMaxWidth()
                         .fillMaxHeight(),
                     ){
-                        Row(modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween){
-                            Text(
+                        Text(
                                 text = "Add Transaction",
                                 fontSize = 20.sp,
                                 modifier = Modifier.padding(20.dp)
@@ -205,7 +222,6 @@ fun UserScreen(uid: String?){
                                     modifier = Modifier.padding(10.dp)
                                 )
                             }
-                        }                        
                         OutlinedTextField(
                             value = description,
                             onValueChange = { description = it },
@@ -234,43 +250,52 @@ fun UserScreen(uid: String?){
                                 onClick = { calstate.show() },
                                 modifier = Modifier.padding(20.dp)
                             ) {
-                                Text(text = date.toString())
+                                Text(text = date)
                             }
 
                             OutlinedButton(
                                 onClick = { timesate.show() },
                                 modifier = Modifier.padding(20.dp)
+                                    .height(20.dp)
                             ) {
-                                Text(text = "$hour/$minute")
+                                Text(text = hour.toString()+":"+minute.toString())
                             }
                         }
 
                         OutlinedButton(onClick = {
+                            if (amount==""){
+                                Toast.makeText(context, "Amount cannot be empty", Toast.LENGTH_SHORT).show()
+                                return@OutlinedButton
+                            }
                             val tid = pref.getInt("tid", 2)
                             pref.edit().putInt("tid", tid+1).apply()
                             oninserttransact(Transaction(
                                 tid = tid.toString(),
-                                uid = uid!!,
+                                uid = user.uid,
                                 description = description,
                                 debt = if (credit) "F" else "T",
                                 paid = "F",
                                 date = date,
                                 time = "$hour:$minute",
-                                amount = amount.toInt()
+                                amount = amount.toInt(),
+                                name = user.name
                             ))
                             if(credit){
-                                accamount+=amount.toInt()
+                                accamount.value+=amount.toInt()
                             }
                             else{
-                                accamount-=amount.toInt()
+                                accamount.value-=amount.toInt()
                             }
 
-                            updateamount(uid,accamount)
+                            updateamount(User(
+                                uid = user.uid,
+                                name = user.name,
+                                amount = accamount.value
+                            ))
 
                             description=""
                             amount=""
-                            Toast.makeText(context, "Pls welcome $date $hour.$minute", Toast.LENGTH_SHORT)
-                                .show()
+
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
                                 if (!sheetState.isVisible) {
                                     showBottomSheet = false
@@ -289,10 +314,10 @@ fun UserScreen(uid: String?){
                 Modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
                 ,){
-                UserUpperPanel(uid)
-                if (transacts != null) {
-                    UserLowerPanel(transacts.value)
-                }
+                UserUpperPanel(user,accamount)
+                var transacts1 = transacts.value.toMutableList()
+                UserLowerPanel(transacts1,accamount,navcontroller)
+
             }
         }
 
@@ -300,29 +325,14 @@ fun UserScreen(uid: String?){
 }
 
 @Composable
-fun UserUpperPanel(uid:String?){
-    val context = LocalContext.current
-    val userRepository by lazy { UserRepository( context.applicationContext) }
-    val getAmount :(uid:String)->Int={uid->
-        runBlocking(Dispatchers.IO) {
-            userRepository.getamount(uid)
-        }
-    }
+fun UserUpperPanel(user: User,accamount: MutableState<Int>){
 
-    var name=""
-    val users = userRepository.getall().observeAsState(emptyList()).value
-    for(element in users){
-        if (element.uid.equals(uid)){
-            name=element.name
-            break
-        }
-    }
+    val name=user.name
 
     var amount:Int by remember {
         mutableStateOf(0)
     }
-    amount=getAmount(uid.toString())
-
+    amount=user.amount
 
 
 
@@ -331,8 +341,7 @@ fun UserUpperPanel(uid:String?){
         .clip(RoundedCornerShape(30.dp))
         .padding(10.dp)
         .fillMaxWidth()
-        .fillMaxHeight(0.2f),
-
+        .fillMaxHeight(0.2f)
     )
     {
         Column(horizontalAlignment = Alignment.CenterHorizontally,
@@ -342,16 +351,16 @@ fun UserUpperPanel(uid:String?){
                     text = name,
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.padding(10.dp)
                 )
                 Text(
-                    text = "Owes You",
+                    text = if(accamount.value>0) "You are owed" else "You owe",
                     fontSize = 15.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Text(text = "$ ${amount}",
+                Text(text = "₹ ${abs(accamount.value)}",
                     fontSize = 20.sp,
                     fontFamily = FontFamily.Monospace,
                     color = Color.White)
@@ -360,44 +369,274 @@ fun UserUpperPanel(uid:String?){
 }
 
 @Composable
-fun UserLowerPanel(transactlist:List<Transaction>){
+fun UserLowerPanel(
+    transactlist:MutableList<Transaction>,
+    accamount:MutableState<Int>,
+    navcontroller: NavHostController
+){
+    val updatedList = rememberUpdatedState(transactlist)
+
     LazyColumn{
-        itemsIndexed(transactlist){_,element->
-            TransactCard(element)
+        itemsIndexed(updatedList.value){_,element->
+            TransactCard(element,accamount,transactlist,navcontroller)
         }
     }
 
 }
 
+@ExperimentalMaterial3Api
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TransactCard(element: Transaction) {
+fun TransactCard(
+    element: Transaction,
+    accamount: MutableState<Int>,
+    transactlist: MutableList<Transaction>,
+    navcontroller: NavHostController
+) {
+
+    var credit by remember {
+        mutableStateOf(element.debt=="F")
+    }
+
+    var editedcredit by remember {
+        mutableStateOf(credit)
+    }
+
+    var description by remember {
+        mutableStateOf(element.description)
+    }
+
+    var editeddescription by remember {
+        mutableStateOf(description)
+    }
+
+    var amount by remember {
+        mutableStateOf(element.amount.toString())
+    }
+
+    var editedamountn by remember {
+        mutableStateOf(amount)
+    }
+
+    var time by remember {
+        mutableStateOf(element.time)
+    }
+
+
+    var date by remember {
+        mutableStateOf(element.date)
+    }
+
+    var editeddate by remember {
+        mutableStateOf(date)
+    }
+
+    var editedtime by remember {
+        mutableStateOf(time)
+    }
+
+
+    val calstate  = UseCaseState()
+    val timesate = UseCaseState()
+
+    CalendarDialog(state = calstate, selection =CalendarSelection.Date(onNegativeClick ={calstate.hide()} ){
+            dates -> editeddate = dates.toString()
+            calstate.hide()}
+    )
+
+    ClockDialog(state = timesate, selection =ClockSelection.HoursMinutes(onNegativeClick = {timesate.hide()}){
+            hours, minutes ->  editedtime = "$hours:$minutes"
+            timesate.hide()
+    } )
+
+
+
     val context = LocalContext.current
     val userRepository by lazy { UserRepository( context.applicationContext) }
 
-    val getAmount :(uid:String)->Int={uid->
+    val pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+
+    val onupdate: (transaction:Transaction) -> Unit = { transaction->
         runBlocking(Dispatchers.IO) {
-            userRepository.getamount(uid)
+            userRepository.updatetransact(transaction)
         }
     }
 
-    var amount by remember { mutableStateOf(0) }
-
-    amount = getAmount(element.uid)
-
-    val onupdate: (uid: String,valu:String) -> Unit = { uid,valu ->
+    val updateamount:(user:User) -> Unit = { user->
         runBlocking(Dispatchers.IO) {
-            userRepository.updatepaid(uid,valu)
+            userRepository.updateamount(user)
         }
     }
 
-    val updateamount:(uid:String, amount:Int) -> Unit = { uid,amount->
-        runBlocking(Dispatchers.IO) {
-            userRepository.updateamount(uid,amount)
+    var paid by remember {
+        mutableStateOf(element.paid)
+    }
+
+    val deletetransact:(transaction:Transaction)->Unit={
+        transaction ->
+        runBlocking ( Dispatchers.IO ){
+            userRepository.deletetransact(transaction)
         }
     }
 
     var alertdialogval by remember {
         mutableStateOf(false)
+    }
+
+    var editdialogval by remember {
+        mutableStateOf(false)
+    }
+
+    val updatetransact:(transaction:Transaction)->Unit={
+            transaction ->
+        runBlocking ( Dispatchers.IO ){
+            userRepository.updatetransact(transaction)
+        }
+    }
+
+    when {
+        editdialogval->{
+            Dialog(onDismissRequest = { editdialogval=false }) {
+                Card(modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.7f)){
+                    Column(modifier= Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(),
+                    ){
+                            Text(
+                                text = "Add Transaction",
+                                fontSize = 20.sp,
+                                modifier = Modifier.padding(20.dp)
+                            )
+                            Row{
+                                Text(
+                                    text = "Debt",
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                                Switch(checked = editedcredit,
+                                    onCheckedChange = { editedcredit = it},
+                                    thumbContent = {
+                                        if (editedcredit) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.down_arrow_filled),
+                                                contentDescription = " "
+                                            )
+                                        } else {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.up_arrow_filled),
+                                                contentDescription = " "
+                                            )
+                                        }
+                                    }
+                                )
+                                Text(
+                                    text = "Credit",
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+
+                        OutlinedTextField(
+                            value = editeddescription,
+                            onValueChange = { editeddescription = it },
+                            label = { Text("Description") },
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(horizontal = 20.dp)
+                                .fillMaxWidth(),
+                        )
+
+                        OutlinedTextField(
+                            value = editedamountn,
+                            onValueChange = { editedamountn = it },
+                            label = { Text("Amount") },
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(horizontal = 20.dp)
+                                .fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+
+
+                        Row(modifier=Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly){
+                            OutlinedButton(
+                                onClick = { calstate.show() },
+                                modifier = Modifier.padding(20.dp)
+                            ) {
+                                Text(text = editeddate)
+                            }
+
+                            OutlinedButton(
+                                onClick = { timesate.show() },
+                                modifier = Modifier.padding(20.dp)
+                            ) {
+                                Text(text = editedtime)
+                            }
+                        }
+
+                        OutlinedButton(onClick = {
+                            if(paid=="F"){
+                                if(!credit){
+                                    if(editedcredit){
+                                        accamount.value+=amount.toInt()
+                                        accamount.value+=editedamountn.toInt()
+
+                                    }
+                                    else{
+                                        accamount.value+=amount.toInt()
+                                        accamount.value-=editedamountn.toInt()
+                                    }
+                                }
+                                else{
+                                    if(editedcredit){
+                                        accamount.value-=amount.toInt()
+                                        accamount.value+=editedamountn.toInt()
+                                    }
+                                    else{
+                                        accamount.value-=amount.toInt()
+                                        accamount.value-=editedamountn.toInt()
+                                    }
+                                }
+                            }
+                            updateamount(User(
+                                uid = element.uid,
+                                name = element.name,
+                                amount = accamount.value
+                            ))
+
+                            updatetransact(
+                                Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = editeddescription,
+                                debt = if (editedcredit) "F" else "T",
+                                paid = paid,
+                                date = editeddate,
+                                time = editedtime,
+                                amount = editedamountn.toInt(),
+                                name = element.name
+                            )
+                            )
+
+                            description = editeddescription
+                            date = editeddate
+                            time = editedtime
+                            amount = editedamountn
+                            credit = editedcredit
+
+                            editdialogval = false
+                        },
+                            modifier = Modifier.padding(20.dp)) {
+                            Text(text = "Edit")
+                        }
+                    }
+                }
+
+            }
+        }
     }
 
     when{
@@ -406,8 +645,10 @@ fun TransactCard(element: Transaction) {
                 onDismissRequest = { alertdialogval = false },
                 icon = { Icon(painter = painterResource(id = R.drawable.menu), contentDescription ="some" ) },
                 confirmButton = {
-                    TextButton(onClick = { alertdialogval = false }) {
-                        Text("Confirm")
+                    TextButton(onClick = {
+                        editdialogval = true
+                        alertdialogval = false }) {
+                        Text("Edit")
                     }
                 },
                 title = { Text(text = "Edit") },
@@ -416,57 +657,157 @@ fun TransactCard(element: Transaction) {
                 },
                 dismissButton = {
                     TextButton(onClick = {
-                        Toast.makeText(context, "Using Button", Toast.LENGTH_SHORT).show()
+                        if(!credit){
+                            if(paid=="F"){
+                                accamount.value+=element.amount
+                            }
+                        }
+                        else{
+                            if(paid=="F"){
+                                accamount.value-=element.amount
+                            }
+                        }
+
+                        updateamount(User(
+                            uid = element.uid,
+                            name = element.name,
+                            amount = accamount.value
+                        ))
+
+                        deletetransact(Transaction(
+                            tid = element.tid,
+                            uid = element.uid,
+                            description = description,
+                            debt = if(credit)"F" else "T",
+                            paid = "F",
+                            date = date,
+                            time = time,
+                            amount = amount.toInt(),
+                            name = element.name
+                        )
+                        )
+
                         alertdialogval = false
+
+                        navcontroller.popBackStack()
+
+                        navcontroller.navigate("UserScreen/${Gson().toJson(User(
+                            uid = element.uid,
+                            name = element.name,
+                            amount = accamount.value
+                        ))}")
+
                     }) {
-                        Text("Dismiss")
+                        Text("Delete")
                     }
                 },
                 )
         }
     }
 
-    var paid by remember {
-        mutableStateOf("")
-    }
-    paid = element.paid
-
     val pay = SwipeAction(
             onSwipe = {
-                Toast.makeText(context, "Paid", Toast.LENGTH_SHORT).show()
+                if(!credit) {
+                    if (paid=="T") {
+                        accamount.value -= amount.toInt()
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = description,
+                                debt = if(credit)"F" else "T",
+                                paid = "F",
+                                date = date,
+                                time = time,
+                                amount = amount.toInt(),
+                                name = element.name
+                            )
+                        )
+                    } else {
+                        accamount.value += amount.toInt()
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = description,
+                                debt = if(credit)"F" else "T",
+                                paid = "T",
+                                date = date,
+                                time = time,
+                                amount = amount.toInt(),
+                                name = element.name
+                            )
+                        )
+                    }
+                }
+                else{
+                    if (paid == "T") {
+                        accamount.value += amount.toInt()
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = description,
+                                debt = if(credit)"F" else "T",
+                                paid = "F",
+                                date = date,
+                                time = time,
+                                amount = amount.toInt(),
+                                name = element.name
+                            )
+                        )
+                    } else {
+                        accamount.value -= amount.toInt()
+                        onupdate(
+                            Transaction(
+                                tid = element.tid,
+                                uid = element.uid,
+                                description = description,
+                                debt = if(credit)"F" else "T",
+                                paid = "T",
+                                date = date,
+                                time = time,
+                                amount = amount.toInt(),
+                                name = element.name
+                            )
+                        )
+                    }
 
-                if(element.paid.equals("T")){
-                    amount+=element.amount
-                    onupdate(element.tid,"F")
                 }
-                else{
-                    amount-=element.amount
-                    onupdate(element.tid,"T")
+                paid = if (paid == "T"){
+                    "F"
+                } else{
+                    "T"
                 }
-                if (paid.equals("T")){
-                    paid="F"
-                }
-                else{
-                    paid="T"
-                }
-                updateamount(element.uid,amount)
+                Toast.makeText(context, "Paid ", Toast.LENGTH_SHORT).show()
+                updateamount(User(
+                    uid = element.uid,
+                    name = element.name,
+                    amount = accamount.value
+                ) )
+
             },
             icon = { Icon(painter = painterResource(id = R.drawable.pay), contentDescription ="Savinggg",
                 modifier = Modifier.padding(10.dp))},
-            background = MaterialTheme.colorScheme.secondaryContainer
+            background = MaterialTheme.colorScheme.primaryContainer
         )
 
-    SwipeableActionsBox(startActions = listOf(pay)) {
-            Card(modifier = Modifier.run {
-                height(70.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(0.dp))
-            }, colors = CardDefaults.cardColors(
+    SwipeableActionsBox(swipeThreshold = 200.dp, startActions = listOf(pay)) {
+            Card(modifier = Modifier
+                .height(70.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(0.dp))
+                .combinedClickable(
+                    onClick = {
+
+                    },
+                    onLongClick = {
+                        alertdialogval = true
+                    }
+                ), colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.background
             ),
-                onClick = {
-                    alertdialogval = true
-                }) {
+                ) {
                 Row(
                     modifier = Modifier
                         .padding(5.dp)
@@ -474,21 +815,22 @@ fun TransactCard(element: Transaction) {
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    getLogo(element = element, paid)
+                    var debt = { if(credit) "F" else "T" }
+                    GetLogo(debt(), paid)
                     Column(
                         modifier = Modifier
                             .padding(start = 10.dp)
                             .fillMaxWidth(0.65f)
                     ) {
                         Text(
-                            text = element.description,
+                            text = description,
                             fontSize = 20.sp,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.padding(top = 5.dp)
                         )
                         Text(
-                            text = "${element.date} ${element.time}",
+                            text = "${date} ${time}",
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onBackground,
@@ -501,7 +843,7 @@ fun TransactCard(element: Transaction) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "₹${element.amount}",
+                            text = "₹${amount}",
                             fontSize = 20.sp,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onBackground
@@ -519,11 +861,11 @@ fun TransactCard(element: Transaction) {
 }
 
 @Composable
-fun getLogo(element: Transaction,paid:String) {
+fun GetLogo(debt: String,paid:String) {
     val iconResourceId = when {
-        element.debt == "T" && paid == "T" -> R.drawable.up_arrow_filled
-        element.debt == "T" && paid == "F" -> R.drawable.up_arrow_outline
-        element.debt == "F" && paid == "T" -> R.drawable.down_arrow_filled
+        debt == "T" && paid == "T" -> R.drawable.up_arrow_filled
+        debt == "T" && paid == "F" -> R.drawable.up_arrow_outline
+        debt == "F" && paid == "T" -> R.drawable.down_arrow_filled
         else -> R.drawable.down_arrow_outline
     }
 

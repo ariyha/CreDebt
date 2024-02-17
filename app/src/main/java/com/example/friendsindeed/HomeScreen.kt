@@ -4,7 +4,8 @@ package com.example.friendsindeed
 
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,12 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -30,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,7 +50,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -57,19 +61,15 @@ import kotlinx.coroutines.runBlocking
 @Composable
 fun MyApp() {
         CenterAlignedTopAppBar(
-            title = { Text(text = "My App",
+            title = { Text(text = "CreDebt",
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 30.sp
                 )},
-            actions = {
-                IconButton(onClick = { /*TODO*/ }) {
-                    Icon(painter = painterResource(id = R.drawable.search), contentDescription = "")
-                }
-            }
             )
 }
 
+@ExperimentalMaterial3Api
 @Composable
 fun HomeScreen(navController: NavController){
 
@@ -117,7 +117,7 @@ fun HomeScreen(navController: NavController){
                 ModalBottomSheet(onDismissRequest = { showBottomSheet=false }, sheetState = sheetState) {
                     Column(modifier= Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.3f),
+                        .fillMaxHeight(0.5f),
                         ){
                         Text(
                             text = "Add Name",
@@ -125,6 +125,7 @@ fun HomeScreen(navController: NavController){
                             modifier = Modifier.padding(20.dp)
                         )
                         OutlinedTextField(
+
                             value = newname,
                             onValueChange = { newname = it },
                             label = { Text("Name") },
@@ -134,6 +135,11 @@ fun HomeScreen(navController: NavController){
                                 .fillMaxWidth()
                         )
                         OutlinedButton(onClick = {
+                            if (newname.isEmpty()) {
+                                Toast.makeText(context, "Please enter a name", Toast.LENGTH_SHORT)
+                                    .show()
+                                return@OutlinedButton
+                            }
                             val userid = pref.getInt("userid", 2)
                             pref.edit().putInt("userid", userid + 1).apply()
                             Toast.makeText(context, "Pls welcome $userid", Toast.LENGTH_SHORT)
@@ -156,16 +162,25 @@ fun HomeScreen(navController: NavController){
                 Modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                HomeUpperPanel()
+                var credit = 0
+                var debt = 0
+                for(user in users.value){
+                    if (user.amount<0){
+                        debt+=user.amount
+                        }
+                    else{
+                        credit+=user.amount
+                        }
+                }
+                HomeUpperPanel(credit,debt)
                 HomeLowerPanel(navController,users .value)
-
             }
         }
     }
 }
 
 @Composable
-fun HomeUpperPanel(){
+fun HomeUpperPanel(credit:Int,debt:Int){
     val context = LocalContext.current
     Row {
         Card(modifier = Modifier
@@ -181,11 +196,12 @@ fun HomeUpperPanel(){
                 modifier = Modifier.fillMaxSize()){
                 Text(text = "You Owe",
                     fontSize = 20.sp,
-                    fontFamily = FontFamily.Monospace)
-                Text(text = "₹1000",
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(text = "₹${debt}",
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White)
+                    color = Color.Red)
             }
         }
         Card(modifier = Modifier
@@ -201,11 +217,12 @@ fun HomeUpperPanel(){
                 modifier = Modifier.fillMaxSize()){
                 Text(text = "Owed to you",
                     fontSize = 20.sp,
-                    fontFamily = FontFamily.Monospace)
-                Text(text = "₹1000",
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(text = "₹${credit}",
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.White)
+                    color = Color.Green)
             }
         }
 
@@ -216,7 +233,6 @@ fun HomeUpperPanel(){
 
 @Composable
 fun HomeLowerPanel(navController: NavController, users: List<User>){
-    val context = LocalContext.current
     Row(modifier = Modifier.fillMaxSize()){
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             itemsIndexed(users) {_, element ->
@@ -225,6 +241,7 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
                     indebt = element.amount < 0,
                     amount = element.amount,
                     navController = navController,
+                    uid = element.uid
                 )
             }
         }
@@ -232,29 +249,134 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController){
+fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController,uid:String){
+
+    var name by remember {
+        mutableStateOf(name)
+    }
+
+    val context = LocalContext.current
+    val userRepository by lazy { UserRepository( context.applicationContext) }
+
+    var alertdialogval by remember {
+        mutableStateOf(false)
+    }
+
+    val ondelete:(User)->Unit={user->
+        runBlocking(IO) {
+            userRepository.deleteuser(user)
+        }
+    }
+
+    val ondeletedata:(String)->Unit={uid->
+        runBlocking(IO) {
+            userRepository.deletedata(uid)
+        }
+    }
+    var editdialog by remember {
+        mutableStateOf(false)
+    }
+
+    var editedname by remember {
+        mutableStateOf("")
+    }
+
+    when{
+        editdialog->{
+            Dialog(onDismissRequest = { editdialog = false }) {
+                Card(modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.2f)){
+                    Column(modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceEvenly,
+                        horizontalAlignment = Alignment.CenterHorizontally){
+                        OutlinedTextField(
+                            value = editedname,
+                            onValueChange = { editedname = it },
+                            label = { Text("New Name") })
+                        OutlinedButton(onClick = {
+                            runBlocking(IO) {
+                                userRepository.updateamount(
+                                    User(
+                                        uid = uid,
+                                        name = editedname,
+                                        amount = amount
+                                    )
+                                )
+                                name = editedname
+                            }
+                            editdialog = false
+                        }) {
+                            Text(text = "Edit")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    when{
+        alertdialogval->{
+            AlertDialog(
+                onDismissRequest = { alertdialogval = false },
+                icon = { Icon(painter = painterResource(id = R.drawable.menu), contentDescription ="some" ) },
+                confirmButton = {
+                    TextButton(onClick = { alertdialogval = false
+                    editdialog=true}) {
+                        Text("Edit")
+                    }
+                },
+                title = { Text(text = "Edit") },
+                text = {
+                    Text(text = "Do you want to edit or delete the user? ")
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        if(amount!=0){
+                            Toast.makeText(context,"Please clear the amount before deleting",Toast.LENGTH_SHORT).show()
+                        }
+                        else{
+                            ondeletedata(uid)
+                            ondelete(User(uid = uid, name = name, amount = amount))
+                            navController.popBackStack()
+                            navController.navigate("HomeScreen")
+                            alertdialogval = false
+                        } }) {
+                        Text("Delete")
+                    }
+                },
+            )
+        }
+    }
+
+
     Card (
         modifier = Modifier
             .height(70.dp)
             .clip(RoundedCornerShape(10.dp))
-            .fillMaxWidth(),
-        onClick = {
-            navController.navigate(UserScreen.route+"/$name")
+            .fillMaxWidth()
+            .combinedClickable(onClick = {
+                val json = Gson().toJson(User(uid = uid, name = name, amount = amount))
+                navController.navigate(UserScreen.route + "/$json")
 
-        },
-
+            },
+                onLongClick = {
+                    alertdialogval = true
+                }),
     ) {
         Row(modifier= Modifier
             .padding(5.dp)
             .fillMaxHeight()
             .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically) {
-            Image(
+            Icon(
                 painter = painterResource(id = R.drawable.profile_user),
                 contentDescription = "Account User",
                 modifier = Modifier
-                    .size(50.dp) // Aligning the Image to the center
+                    .size(40.dp)
+                    .padding(horizontal = 5.dp) // Aligning the Image to the center
             )
             Text(
                 text = name,
