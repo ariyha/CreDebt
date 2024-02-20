@@ -5,6 +5,7 @@ package com.example.friendsindeed
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -315,6 +316,7 @@ fun UserScreen(user: String?, navcontroller: NavHostController){
                 verticalArrangement = Arrangement.spacedBy(10.dp)
                 ,){
                 UserUpperPanel(user,accamount)
+                Log.d("UserScreen", "UserScreen: ${transacts.value}")
                 var transacts1 = transacts.value.toMutableList()
                 UserLowerPanel(transacts1,accamount,navcontroller)
 
@@ -334,6 +336,7 @@ fun UserUpperPanel(user: User,accamount: MutableState<Int>){
     }
     amount=user.amount
 
+    //Trying to commit project
 
 
 
@@ -378,7 +381,7 @@ fun UserLowerPanel(
 
     LazyColumn{
         itemsIndexed(updatedList.value){_,element->
-            TransactCard(element,accamount,transactlist,navcontroller)
+            TransactCard(element,accamount,navcontroller)
         }
     }
 
@@ -390,7 +393,6 @@ fun UserLowerPanel(
 fun TransactCard(
     element: Transaction,
     accamount: MutableState<Int>,
-    transactlist: MutableList<Transaction>,
     navcontroller: NavHostController
 ) {
 
