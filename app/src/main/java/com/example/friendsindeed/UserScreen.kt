@@ -335,6 +335,7 @@ fun UserUpperPanel(user: User,accamount: MutableState<Int>){
         mutableStateOf(0)
     }
     amount=user.amount
+    Log.d("Cant findd","UserUpperPanel: ${accamount.value}")
 
 
 
