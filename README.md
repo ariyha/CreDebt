@@ -12,7 +12,7 @@ CreDebt is an Android application designed to help you conveniently manage your 
 
 - **Transaction History**: View a comprehensive history of all your transactions, including debts and credits, for better financial transparency.
 
-- **Search Functionality** (to be released soon): Quickly search through your transaction history to find specific records based on various parameters like name, amount, or date.
+- **Search Functionality** (to be added soon): Quickly search through your transaction history to find specific records based on various parameters like name, amount, or date.
 
 ## How to Use
 1. **Installation**: Download and install the "CreDebt" app.
@@ -20,7 +20,7 @@ CreDebt is an Android application designed to help you conveniently manage your 
 3. **View and Manage Transactions**: Access your transaction history to view, edit, or delete entries as needed. Categorize transactions for better organization.
 
 ## Feedback and Support
-We value your feedback! If you encounter any issues, have suggestions for improvement, or require assistance, please don't hesitate to contact us. You can reach out to our support team via email at nithishariyha02467@gmail.com.
+We value your feedback! If you encounter any issues, have suggestions for improvement, or require assistance, please don't hesitate to contact us. You can reach out to our support team(Which is only me) via email at nithishariyha02467@gmail.com.
 
 ## Privacy and Security
 We take your privacy and security seriously. All your financial data is stored locally on your device. We do not share your personal information with third parties without your consent.
