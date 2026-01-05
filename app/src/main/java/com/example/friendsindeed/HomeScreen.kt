@@ -20,10 +20,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -33,6 +35,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -59,14 +65,23 @@ import kotlinx.coroutines.runBlocking
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyApp() {
-        CenterAlignedTopAppBar(
-            title = { Text(text = "CreDebt",
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontSize = 30.sp
-                )},
-            )
+fun MyApp(onCurrencyClick: () -> Unit = {}, currencySymbol: String = "₹") {
+    CenterAlignedTopAppBar(
+        title = { Text(text = "CreDebt",
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontSize = 30.sp
+            )},
+        actions = {
+            IconButton(onClick = onCurrencyClick) {
+                Text(
+                    text = currencySymbol,
+                    fontSize = 24.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+    )
 }
 
 @ExperimentalMaterial3Api
@@ -81,6 +96,14 @@ fun HomeScreen(navController: NavController){
     val context = LocalContext.current
     var showBottomSheet by remember {
         mutableStateOf(false)
+    }
+    
+    var showCurrencyDialog by remember {
+        mutableStateOf(false)
+    }
+    
+    var currencySymbol by remember {
+        mutableStateOf(CurrencyManager.getCurrencySymbol(context))
     }
 
     val pref = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
@@ -98,7 +121,7 @@ fun HomeScreen(navController: NavController){
 
 
     Scaffold(
-        topBar = { MyApp() },
+        topBar = { MyApp(onCurrencyClick = { showCurrencyDialog = true }, currencySymbol = currencySymbol) },
         floatingActionButton = { ExtendedFloatingActionButton(
             onClick = { showBottomSheet=true },
             icon = { Icon(painter = painterResource(id = R.drawable.plus_new), "Extended floating action button.",
@@ -157,6 +180,18 @@ fun HomeScreen(navController: NavController){
                         }
                     }                }
             }
+            
+            // Currency Selection Dialog
+            if (showCurrencyDialog) {
+                CurrencySelectionDialog(
+                    onDismiss = { showCurrencyDialog = false },
+                    onCurrencySelected = { currency ->
+                        CurrencyManager.setCurrency(context, currency)
+                        currencySymbol = CurrencyManager.getCurrencySymbol(context)
+                        showCurrencyDialog = false
+                    }
+                )
+            }
 
             Column(
                 Modifier.padding(10.dp),
@@ -172,15 +207,15 @@ fun HomeScreen(navController: NavController){
                         credit+=user.amount
                         }
                 }
-                HomeUpperPanel(credit,debt)
-                HomeLowerPanel(navController,users .value)
+                HomeUpperPanel(credit,debt,currencySymbol)
+                HomeLowerPanel(navController,users .value,currencySymbol)
             }
         }
     }
 }
 
 @Composable
-fun HomeUpperPanel(credit:Int,debt:Int){
+fun HomeUpperPanel(credit:Int,debt:Int, currencySymbol: String){
     val context = LocalContext.current
     Row {
         Card(modifier = Modifier
@@ -198,7 +233,7 @@ fun HomeUpperPanel(credit:Int,debt:Int){
                     fontSize = 20.sp,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(text = "₹${debt}",
+                Text(text = "$currencySymbol${debt}",
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
                     color = Color.Red)
@@ -219,7 +254,7 @@ fun HomeUpperPanel(credit:Int,debt:Int){
                     fontSize = 20.sp,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(text = "₹${credit}",
+                Text(text = "$currencySymbol${credit}",
                     fontSize = 30.sp,
                     fontFamily = FontFamily.Monospace,
                     color = Color.Green)
@@ -232,7 +267,7 @@ fun HomeUpperPanel(credit:Int,debt:Int){
 
 
 @Composable
-fun HomeLowerPanel(navController: NavController, users: List<User>){
+fun HomeLowerPanel(navController: NavController, users: List<User>, currencySymbol: String){
     Row(modifier = Modifier.fillMaxSize()){
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             itemsIndexed(users) {_, element ->
@@ -241,7 +276,8 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
                     indebt = element.amount < 0,
                     amount = element.amount,
                     navController = navController,
-                    uid = element.uid
+                    uid = element.uid,
+                    currencySymbol = currencySymbol
                 )
             }
         }
@@ -251,7 +287,7 @@ fun HomeLowerPanel(navController: NavController, users: List<User>){
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController,uid:String){
+fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavController,uid:String, currencySymbol: String){
 
     var name by remember {
         mutableStateOf(name)
@@ -390,12 +426,101 @@ fun UserCard(name:String, indebt:Boolean,amount: Int,navController: NavControlle
             Column(verticalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally){
-                Text(text = "₹${amount}",
+                Text(text = "$currencySymbol${amount}",
                 fontSize = 20.sp,
                 fontFamily = FontFamily.Monospace,
                     color = if(indebt) Color.Red else Color.Green )
             }
 
+        }
+    }
+}
+
+@Composable
+fun CurrencySelectionDialog(
+    onDismiss: () -> Unit,
+    onCurrencySelected: (CurrencyManager.Currency) -> Unit
+) {
+    val context = LocalContext.current
+    val currentCurrency = remember { CurrencyManager.getCurrentCurrency(context) }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.6f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Select Currency",
+                    fontSize = 24.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(CurrencyManager.supportedCurrencies) { currency ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onCurrencySelected(currency)
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (currency.code == currentCurrency.code) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                }
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = currency.symbol,
+                                        fontSize = 24.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    Text(
+                                        text = "${currency.name} (${currency.code})",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (currency.code == currentCurrency.code) {
+                                    Icon(
+                                        painter = painterResource(id = android.R.drawable.ic_menu_recent_history),
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    Text("Close")
+                }
+            }
         }
     }
 }

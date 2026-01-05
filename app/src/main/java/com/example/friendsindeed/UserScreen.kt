@@ -9,6 +9,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -86,6 +88,10 @@ fun UserScreen(user: String?, navcontroller: NavHostController){
 
     val context = LocalContext.current
     val userRepository by lazy { UserRepository( context.applicationContext) }
+    
+    var currencySymbol by remember {
+        mutableStateOf(CurrencyManager.getCurrencySymbol(context))
+    }
 
 
     val accamount:MutableState<Int> = remember {
@@ -166,8 +172,13 @@ fun UserScreen(user: String?, navcontroller: NavHostController){
     var showBottomSheet by remember {
         mutableStateOf(false)
     }
+    
+    var showCurrencyDialog by remember {
+        mutableStateOf(false)
+    }
+    
     Scaffold(
-        topBar = { MyApp()  },
+        topBar = { MyApp(onCurrencyClick = { showCurrencyDialog = true }, currencySymbol = currencySymbol) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
@@ -309,16 +320,27 @@ fun UserScreen(user: String?, navcontroller: NavHostController){
                     }
                 }
             }
-
+            
+            // Currency Selection Dialog
+            if (showCurrencyDialog) {
+                CurrencySelectionDialog(
+                    onDismiss = { showCurrencyDialog = false },
+                    onCurrencySelected = { currency ->
+                        CurrencyManager.setCurrency(context, currency)
+                        currencySymbol = CurrencyManager.getCurrencySymbol(context)
+                        showCurrencyDialog = false
+                    }
+                )
+            }
 
             Column(
                 Modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
                 ,){
-                UserUpperPanel(user,accamount)
+                UserUpperPanel(user,accamount,currencySymbol)
                 Log.d("UserScreen", "UserScreen: ${transacts.value}")
                 var transacts1 = transacts.value.toMutableList()
-                UserLowerPanel(transacts1,accamount,navcontroller)
+                UserLowerPanel(transacts1,accamount,navcontroller,currencySymbol)
 
             }
         }
@@ -327,7 +349,7 @@ fun UserScreen(user: String?, navcontroller: NavHostController){
 }
 
 @Composable
-fun UserUpperPanel(user: User,accamount: MutableState<Int>){
+fun UserUpperPanel(user: User,accamount: MutableState<Int>, currencySymbol: String){
 
     val name=user.name
 
@@ -363,7 +385,7 @@ fun UserUpperPanel(user: User,accamount: MutableState<Int>){
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Text(text = "₹ ${abs(accamount.value)}",
+                Text(text = "$currencySymbol ${abs(accamount.value)}",
                     fontSize = 20.sp,
                     fontFamily = FontFamily.Monospace,
                     color = Color.White)
@@ -375,13 +397,14 @@ fun UserUpperPanel(user: User,accamount: MutableState<Int>){
 fun UserLowerPanel(
     transactlist:MutableList<Transaction>,
     accamount:MutableState<Int>,
-    navcontroller: NavHostController
+    navcontroller: NavHostController,
+    currencySymbol: String
 ){
     val updatedList = rememberUpdatedState(transactlist)
 
     LazyColumn{
         itemsIndexed(updatedList.value){_,element->
-            TransactCard(element,accamount,navcontroller)
+            TransactCard(element,accamount,navcontroller,currencySymbol)
         }
     }
 
@@ -393,7 +416,8 @@ fun UserLowerPanel(
 fun TransactCard(
     element: Transaction,
     accamount: MutableState<Int>,
-    navcontroller: NavHostController
+    navcontroller: NavHostController,
+    currencySymbol: String
 ) {
 
     var credit by remember {
@@ -845,7 +869,7 @@ fun TransactCard(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "₹${amount}",
+                            text = "$currencySymbol${amount}",
                             fontSize = 20.sp,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onBackground
