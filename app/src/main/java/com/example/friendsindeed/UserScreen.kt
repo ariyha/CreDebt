@@ -268,9 +268,8 @@ fun UserScreen(user: String?, navcontroller: NavHostController){
                             OutlinedButton(
                                 onClick = { timesate.show() },
                                 modifier = Modifier.padding(20.dp)
-                                    .height(20.dp)
                             ) {
-                                Text(text = hour.toString()+":"+minute.toString())
+                                Text(text = String.format("%02d:%02d", hour, minute))
                             }
                         }
 
